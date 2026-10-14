@@ -99,8 +99,13 @@ Credentials и персональные ID удалены. Workflow выключ
 - Не проверены одновременные поступления, конкурентные обновления и восстановление после ошибок API. Запись в PostgreSQL и уведомление Telegram не являются одной транзакцией.
 - Численное сокращение времени обработки не измерялось; система не заменяет бухгалтерский учёт.
 
-## Автор
+## Author
 
-[Alexander Zaytsev](https://github.com/AlexZaytsev-ai) — автоматизация бизнес-процессов на n8n.
+**Alexander Zaytsev**
+
+AI Automation Engineer
+
+* GitHub: https://github.com/AlexZaytsev-ai
+* Email: [polonix315@gmail.com](mailto:polonix315@gmail.com)
 
 Технологии: **n8n · Gmail · OpenAI · PostgreSQL · Telegram Bot API · Google Sheets · JavaScript · SQL**.
