@@ -12,8 +12,6 @@ The main scenarios have been checked manually. The system handles invoice approv
 
 https://github.com/user-attachments/assets/9e880288-1291-4bb6-b10c-c9ba1d107944
 
-82-second demo: the n8n workflow, PDF invoice sending, data extraction, Telegram approval, an updated invoice version, and the current Google Sheets register. Final result: RUB 11,000 / v2 / approved. The interface and captions are in Russian.
-
 ## Business Problem
 
 An invoice arrives by email. Someone needs to check who sent it, whether the bank details have changed, whether it has already been processed, and who made the decision. The automation connects these steps and stops questionable cases for manual review.
