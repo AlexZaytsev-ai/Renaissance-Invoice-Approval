@@ -1,103 +1,111 @@
-# Ренессанс: согласование счетов в Telegram
+# Renaissance: Invoice Approval in Telegram
 
-Проект разработан для **[компании «Ренессанс»](https://renss.ru/aboutcompany)**, которая занимается реставрацией и реконструкцией инженерных сетей, а также застройкой и оформлением конгрессно-выставочных мероприятий.
+[Русская версия](README_RU.md)
 
-Проект на **n8n**: получает PDF-счёт из Gmail, извлекает данные с помощью ИИ, проверяет поставщика и реквизиты, сохраняет счёт в PostgreSQL и отправляет на согласование в Telegram. Google Sheets показывает актуальный реестр.
+A project developed for **[Renaissance](https://renss.ru/aboutcompany)**, a company working on the restoration and reconstruction of engineering networks and the construction and decoration of congress and exhibition events.
 
-Основные сценарии проверены вручную. Система согласует счета и ведёт реестр; оплаты не выполняет.
+Built with **n8n**: receives a PDF invoice from Gmail, extracts data with AI, checks the supplier and bank details, saves the invoice in PostgreSQL, and sends it to Telegram for approval. Google Sheets displays the current register.
 
-## Какая задача решается
+The main scenarios have been checked manually. The system handles invoice approval and the register; it does not make payments.
 
-Счёт приходит по почте. Нужно проверить, от кого он, не изменились ли реквизиты, не обрабатывался ли он раньше и кто принял решение. Автоматизация связывает эти шаги в один процесс и останавливает сомнительные случаи для ручной проверки.
+## Demo
 
-## Как работает
+https://github.com/user-attachments/assets/9e880288-1291-4bb6-b10c-c9ba1d107944
 
-![Схема трёх workflow](assets/architecture.svg)
+82-second demo: the n8n workflow, PDF invoice sending, data extraction, Telegram approval, an updated invoice version, and the current Google Sheets register. Final result: RUB 11,000 / v2 / approved. The interface and captions are in Russian.
 
-| Workflow | Что делает | Запуск |
+## Business Problem
+
+An invoice arrives by email. Someone needs to check who sent it, whether the bank details have changed, whether it has already been processed, and who made the decision. The automation connects these steps and stops questionable cases for manual review.
+
+## How It Works
+
+![Three-workflow architecture](assets/architecture.svg)
+
+| Workflow | Purpose | Trigger |
 | --- | --- | --- |
-| [Приём счёта](workflows/invoice-intake.json) | Извлекает данные, проверяет реквизиты, создаёт или обновляет запись, отправляет кнопки | Gmail, опрос раз в минуту |
-| [Решения по счетам](workflows/invoice-approvals.json) | Проверяет пользователя, версию и статус, сохраняет решение, обновляет сообщение | Нажатие кнопки Telegram |
-| [Отчёт](workflows/invoice-report.json) | Добавляет или обновляет строки Google Sheets по `invoice_id` | Каждые 15 минут |
+| [Invoice intake](workflows/invoice-intake.json) | Extracts data, checks bank details, creates or updates a record, and sends approval buttons | Gmail, polled once a minute |
+| [Invoice decisions](workflows/invoice-approvals.json) | Checks the user, version, and status; saves the decision; updates the message | Telegram button click |
+| [Report](workflows/invoice-report.json) | Adds or updates Google Sheets rows by `invoice_id` | Every 15 minutes |
 
-Приём и обработка решений связаны через **одного Telegram-бота**. Приём отправляет кнопку, а Telegram Trigger в workflow решений получает нажатие. Отчёт читает данные из PostgreSQL.
+Intake and decision handling use **one Telegram bot**. Intake sends the buttons, and the Telegram Trigger in the decisions workflow receives clicks. The report reads data from PostgreSQL.
 
-## Скриншоты workflow
+## Workflow Screenshots
 
-### 1. Приём и обработка счёта
+### 1. Invoice Intake and Processing
 
-Получает PDF из Gmail, извлекает данные и проверяет поставщика, банковский счёт и дубли. Новый счёт сохраняется; при изменении данных увеличивается версия и отправляется повторное согласование в Telegram. Точный дубль останавливается без нового сообщения.
+Receives a PDF from Gmail, extracts data, and checks the supplier, bank account, and duplicates. A new invoice is saved; changed data increases the version and triggers another Telegram approval. An exact duplicate stops without a new message.
 
-![Приём и обработка счёта в n8n](assets/workflow-intake.png)
+![Invoice intake and processing in n8n](assets/workflow-intake.png)
 
-### 2. Решения по счетам в Telegram
+### 2. Invoice Decisions in Telegram
 
-Получает нажатие кнопки и проверяет пользователя и чат. Сохраняет решение только для актуальной версии со статусом `pending`, затем обновляет сообщение. Старые кнопки и повторное решение той же версии отклоняются.
+Receives a button click and checks the user and chat. Saves a decision only for the current version with a `pending` status, then updates the message. Old buttons and repeated decisions for the same version are rejected.
 
-![Обработка решений по счетам в n8n](assets/workflow-approvals.png)
+![Invoice decision handling in n8n](assets/workflow-approvals.png)
 
-### 3. Отчёт в Google Sheets
+### 3. Google Sheets Report
 
-Каждые **15 минут** читает актуальные данные из PostgreSQL и обновляет реестр. По `invoice_id` находит существующую строку или добавляет новую, поэтому повторная выгрузка не создаёт дубль.
+Every **15 minutes**, reads the current data from PostgreSQL and updates the register. Finds an existing row by `invoice_id` or adds a new one, so repeated exports do not create duplicates.
 
-![Обновление реестра Google Sheets в n8n](assets/workflow-report.png)
+![Google Sheets register update in n8n](assets/workflow-report.png)
 
-## Пример
+## Example
 
-1. Пришёл новый счёт на **10 000 ₽** → версия **1**, статус `pending`, кнопки в Telegram.
-2. Повторили тот же документ → изменений и нового сообщения нет.
-3. Прислали тот же номер счёта на **11 000 ₽** → версия **2**, статус снова `pending`.
-4. Нажали кнопку версии 1 → отказ: она относится к старым данным.
-5. Согласовали версию 2 → `approved`, сохранены пользователь и время, кнопки убраны.
-6. Попытались принять ещё одно решение по версии 2 → отказ: она уже рассмотрена.
-7. При следующем запуске отчёта обновляется та же строка Google Sheets.
+1. A new invoice for **RUB 10,000** arrives → version **1**, status `pending`, Telegram buttons.
+2. The same document is sent again → no changes and no new message.
+3. The same invoice number arrives for **RUB 11,000** → version **2**, status returns to `pending`.
+4. A version 1 button is clicked → rejected because it refers to old data.
+5. Version 2 is approved → `approved`; the user and time are saved; buttons are removed.
+6. Another decision is attempted for version 2 → rejected because it has already been reviewed.
+7. The next report run updates the same Google Sheets row.
 
-Пример выше использует вымышленные суммы. Результаты проверки на рабочем стенде описаны отдельно в [журнале проверок](docs/test-results.md).
+The example above uses fictional amounts. Checks on the configured test environment are described separately in the [test results](docs/test-results.md).
 
-## Правила
+## Rules
 
-- Поставщик ищется по **ИНН** в справочнике PostgreSQL.
-- Банковский счёт из PDF должен совпадать со счётом из справочника.
-- Инвойс ищется по паре **ИНН поставщика + номер счёта**.
-- Точный дубль не обновляет запись и не увеличивает версию.
-- При изменении данных увеличивается версия и сбрасываются решение, автор и время согласования.
-- Решение записывается только при совпадении **ID + версии + статуса `pending`**.
-- Неизвестный поставщик, неполные данные или несовпадение реквизитов вызывают уведомление о ручной проверке.
-- ИИ извлекает поля. Проверки и запись решения выполняют IF, JavaScript и SQL.
+- The supplier is looked up by **tax ID (INN)** in the PostgreSQL reference table.
+- The bank account extracted from the PDF must match the reference table.
+- An invoice is identified by **supplier tax ID + invoice number**.
+- An exact duplicate does not update the record or increase the version.
+- Changed data increases the version and resets the decision, approver, and approval time.
+- A decision is saved only when **ID + version + `pending` status** match.
+- An unknown supplier, incomplete data, or mismatched bank details triggers a manual-review notification.
+- AI extracts fields. IF nodes, JavaScript, and SQL perform checks and record decisions.
 
-`pending` — ждёт решения, `approved` — согласован, `rejected` — отклонён. Поле `status = processed` отдельно описывает обработку документа и не означает согласование.
+`pending` means awaiting a decision, `approved` means approved, and `rejected` means rejected. The separate `status = processed` field describes document processing and does not mean approval.
 
-## Что проверили
+## Verified Scenarios
 
-| Сценарий | Результат |
+| Scenario | Result |
 | --- | --- |
-| Неизвестный поставщик | Уведомление, счёт не записан |
-| Новый счёт | Версия 1, ожидание согласования, кнопки |
-| Точный дубль | Остановка без обновления и нового сообщения |
-| Изменение суммы | Новая версия, повторное согласование |
-| Старая кнопка | Решение не применяется |
-| Согласование и отказ | Решение сохраняется, сообщение обновляется |
-| Повторное решение той же версии | Доступ проходит, сохранение отклоняется |
-| Несовпадение банковского счёта | Остановка до записи; исправлен текст уведомления |
-| Повторная выгрузка Google Sheets | Та же строка обновляется без дубля |
-| Нажатие чужим Telegram-аккаунтом | Проверка предусмотрена, вручную ещё не проверено |
+| Unknown supplier | Notification; invoice not saved |
+| New invoice | Version 1, awaiting approval, buttons |
+| Exact duplicate | Stops without updating or sending a new message |
+| Amount change | New version, renewed approval |
+| Old button | Decision not applied |
+| Approval and rejection | Decision saved, message updated |
+| Repeated decision for the same version | Access check passes; saving is rejected |
+| Bank account mismatch | Stops before saving; notification text corrected |
+| Repeated Google Sheets export | Same row updated without duplicates |
+| Click from another Telegram account | Check implemented; not yet tested manually |
 
-## Запуск демонстрации
+## Running the Demo
 
-В репозитории есть три очищенных JSON, [схема и начальные данные](sql/), [вымышленные PDF](demo/) и [пошаговая настройка](docs/setup.md).
+The repository includes three sanitized JSON exports, [schema and seed data](sql/), [fictional PDFs](demo/), and [step-by-step setup instructions](docs/setup.md).
 
-Credentials и персональные ID удалены. Workflow выключены; перед запуском нужно подключить свои аккаунты и заменить `YOUR_...`. Логика исходных workflow сохранена. Схема базы восстановлена по запросам, а не выгружена из рабочей базы.
+Credentials and personal IDs have been removed. Workflows are inactive; connect your accounts and replace `YOUR_...` before running them. The original workflow logic is preserved. The database schema was reconstructed from queries rather than exported from the working database.
 
-## Ограничения
+## Limitations
 
-- Обрабатывается первое вложение `attachment_0`; сканированные PDF требуют отдельного OCR.
-- Выставка и категория задаются вручную в ноде подготовки данных.
-- Текущая проверка обязательных полей опирается на `missing_fields` от модели; нужна независимая проверка значений. `document_type` извлекается, но отдельного запрета для `not_invoice` в экспортe нет.
-- В PostgreSQL хранится текущая версия. Полной истории версий и решений пока нет.
-- Реестр обновляется по расписанию: изменение в Telegram не означает мгновенное изменение Google Sheets. Ручные правки таблицы не меняют базу; удалённые из базы строки автоматически не удаляются из реестра.
-- Поздно пришедший старый PDF может считаться очередным изменением: защита версий действует для кнопок, а не для порядка писем.
-- Не проверены одновременные поступления, конкурентные обновления и восстановление после ошибок API. Запись в PostgreSQL и уведомление Telegram не являются одной транзакцией.
-- Численное сокращение времени обработки не измерялось; система не заменяет бухгалтерский учёт.
+- Processes the first attachment, `attachment_0`; scanned PDFs need separate OCR.
+- Exhibition and category are set manually in the data preparation node.
+- The current required-field check relies on the model's `missing_fields`; independent value validation is needed. `document_type` is extracted, but the export does not explicitly block `not_invoice`.
+- PostgreSQL stores the current version. A complete version and decision history is not implemented.
+- The register updates on a schedule: a Telegram change does not mean an instant Google Sheets change. Manual sheet edits do not change the database; rows deleted from the database are not automatically removed from the register.
+- A late arrival of an old PDF may count as another change: version protection applies to buttons, not email order.
+- Simultaneous arrivals, concurrent updates, and API error recovery have not been tested. Saving to PostgreSQL and notifying Telegram are not a single transaction.
+- Processing-time reductions have not been measured; the system does not replace accounting software.
 
 ## Author
 
@@ -108,4 +116,4 @@ AI Automation Engineer
 * GitHub: https://github.com/AlexZaytsev-ai
 * Email: [polonix315@gmail.com](mailto:polonix315@gmail.com)
 
-Технологии: **n8n · Gmail · OpenAI · PostgreSQL · Telegram Bot API · Google Sheets · JavaScript · SQL**.
+Technologies: **n8n · Gmail · OpenAI · PostgreSQL · Telegram Bot API · Google Sheets · JavaScript · SQL**.
